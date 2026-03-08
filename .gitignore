@@ -1,0 +1,6 @@
+datasets/
+*.txt
+*.log
+*.csv
+node_modules/
+.env
