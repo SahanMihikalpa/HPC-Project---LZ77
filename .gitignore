@@ -1,6 +1,35 @@
+# Compiled binaries
+serial/serial_lz77
+openmp/openmp_lz77
+pthread/pthread_lz77
+mpi/mpi_lz77
+hybrid/mpi_openmp_lz77
+hybrid/mpi_cuda_lz77
+cuda/cuda_lz77
+*.exe
+*.o
+*.a
+*.so
+
+# Compressed output files
+*.lz77
+output/
+
+# Test datasets and generated data
 datasets/
-*.txt
-*.log
+scripts/datasets/
+
+# Test results
+test_results_*.csv
 *.csv
-node_modules/
+
+# Logs
+*.log
+
+# Environment
 .env
+
+# Editor/OS files
+node_modules/
+.DS_Store
+Thumbs.db
