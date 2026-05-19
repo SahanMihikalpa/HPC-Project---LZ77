@@ -6,6 +6,8 @@
  * Used for performance comparison with parallel implementations
  */
 
+#define _POSIX_C_SOURCE 199309L
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -80,8 +82,8 @@ LZ77_Token* compress_lz77(const uint8_t *input_data, size_t input_size,
     size_t token_count = 0;
     size_t position = 0;
     
-    struct timespec start, end;
-    clock_gettime(CLOCK_MONOTONIC, &start);
+    clock_t start, end;
+    start = clock();
     
     // Main compression loop
     while (position < input_size) {
@@ -103,15 +105,14 @@ LZ77_Token* compress_lz77(const uint8_t *input_data, size_t input_size,
         position += (length > 0) ? (length + 1) : 1;
     }
     
-    clock_gettime(CLOCK_MONOTONIC, &end);
+    end = clock();
     
     // Calculate statistics
     *num_tokens = token_count;
     stats->original_size = input_size;
     stats->compressed_size = token_count * sizeof(LZ77_Token);
     stats->compression_ratio = (double)input_size / stats->compressed_size;
-    stats->execution_time = (end.tv_sec - start.tv_sec) + 
-                           (end.tv_nsec - start.tv_nsec) / 1e9;
+    stats->execution_time = ((double)(end - start)) / CLOCKS_PER_SEC;
     stats->num_tokens = token_count;
     
     return tokens;
