@@ -79,10 +79,9 @@ LZ77_Token* compress_block(const uint8_t *data, size_t start, size_t end,
     while (position < end) {
         uint16_t offset = 0, length = 0;
         
-        find_longest_match(data, position, end, start, &offset, &length);
-        
-        uint8_t next_literal = (position + length < end) ? 
-                               data[position + length] : 0;
+        find_longest_match(data, position, end - 1, start, &offset, &length);
+
+        uint8_t next_literal = data[position + length];
         
         tokens[*num_tokens].offset = offset;
         tokens[*num_tokens].length = length;

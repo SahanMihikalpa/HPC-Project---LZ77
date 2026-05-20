@@ -95,12 +95,11 @@ BlockResult compress_block(const uint8_t *input_data, size_t block_start,
     while (position < block_end) {
         uint16_t offset = 0, length = 0;
         
-        find_longest_match(input_data, position, total_size, 
+        find_longest_match(input_data, position, block_end - 1,
                           (block_start >= OVERLAP_SIZE) ? (block_start - OVERLAP_SIZE) : 0,
                           &offset, &length);
-        
-        uint8_t next_literal = (position + length < total_size) ? 
-                               input_data[position + length] : 0;
+
+        uint8_t next_literal = input_data[position + length];
         
         result.tokens[result.num_tokens].offset = offset;
         result.tokens[result.num_tokens].length = length;

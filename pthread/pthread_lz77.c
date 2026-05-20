@@ -95,11 +95,10 @@ void* compress_block_thread(void *arg) {
     while (position < thread_args->block_end) {
         uint16_t offset = 0, length = 0;
         
-        find_longest_match(thread_args->input_data, position, 
-                          thread_args->total_size, search_start, &offset, &length);
-        
-        uint8_t next_literal = (position + length < thread_args->total_size) ? 
-                               thread_args->input_data[position + length] : 0;
+        find_longest_match(thread_args->input_data, position,
+                          thread_args->block_end - 1, search_start, &offset, &length);
+
+        uint8_t next_literal = thread_args->input_data[position + length];
         
         thread_args->result->tokens[thread_args->result->num_tokens].offset = offset;
         thread_args->result->tokens[thread_args->result->num_tokens].length = length;

@@ -152,7 +152,7 @@ log "  CSV output : $CSV_FILE"
 echo ""
 
 # ── Gather test files ─────────────────────────────────────────────────────────
-mapfile -t TEST_FILES < <(find "$TEST_DIR" -maxdepth 1 -name "*.txt" -printf "%s %p\n" | sort -n | awk '{print $2}')
+mapfile -t TEST_FILES < <(find "$TEST_DIR" -maxdepth 1 -name "*.txt" -printf "%s\t%p\n" | sort -n | cut -f2-)
 if [ ${#TEST_FILES[@]} -eq 0 ]; then
     echo "No test files found in $TEST_DIR"; exit 1
 fi
@@ -212,7 +212,7 @@ for input_file in "${TEST_FILES[@]}"; do
             dec="$WORK_DIR/mpi_p${p}_${fname}.out"
             run_test "mpi" "procs=$p" "$input_file" \
                 "mpirun $MPI_EXTRA -np $p \"$MPI_BIN\" \"$input_file\" \"$comp\"" \
-                "mpirun $MPI_EXTRA -np 1  \"$MPI_BIN\" \"$comp\" \"$dec\" --decompress" \
+                "\"$SERIAL\" \"$comp\" \"$dec\" --decompress" \
                 "$comp" "$dec"
         done
     fi
@@ -225,7 +225,7 @@ for input_file in "${TEST_FILES[@]}"; do
             dec="$WORK_DIR/mpi_omp_p${p}t${t}_${fname}.out"
             run_test "mpi_openmp" "procs=$p,threads=$t" "$input_file" \
                 "env OMP_NUM_THREADS=$t mpirun $MPI_EXTRA -np $p \"$MPI_OMP\" \"$input_file\" \"$comp\"" \
-                "env OMP_NUM_THREADS=1  mpirun $MPI_EXTRA -np 1  \"$MPI_OMP\" \"$comp\" \"$dec\" --decompress" \
+                "\"$SERIAL\" \"$comp\" \"$dec\" --decompress" \
                 "$comp" "$dec"
         done
     fi
@@ -249,7 +249,7 @@ for input_file in "${TEST_FILES[@]}"; do
             dec="$WORK_DIR/mpi_cuda_p${p}_${fname}.out"
             run_test "mpi_cuda" "procs=$p,block_size=256" "$input_file" \
                 "mpirun $MPI_EXTRA -np $p \"$MPI_CUDA\" \"$input_file\" \"$comp\"" \
-                "mpirun $MPI_EXTRA -np 1  \"$MPI_CUDA\" \"$comp\" \"$dec\" --decompress" \
+                "\"$SERIAL\" \"$comp\" \"$dec\" --decompress" \
                 "$comp" "$dec"
         done
     fi
