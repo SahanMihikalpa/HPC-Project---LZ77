@@ -308,9 +308,11 @@ int main(int argc, char *argv[]) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
     
-    // Set GPU device based on local rank
-    int local_rank = rank % 4;  // Assuming 4 GPUs per node
-    CUDA_CHECK(cudaSetDevice(local_rank));
+    // Set GPU device based on available GPUs
+    int num_gpus = 1;
+    cudaGetDeviceCount(&num_gpus);
+    if (num_gpus < 1) num_gpus = 1;
+    CUDA_CHECK(cudaSetDevice(rank % num_gpus));
     
     if (argc < 3) {
         if (rank == 0) {
