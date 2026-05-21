@@ -89,68 +89,76 @@ __global__ void find_matches_kernel(const uint8_t *data, size_t data_size,
  */
 LZ77_Token* compress_block_cuda(const uint8_t *data, size_t start, size_t end,
                                size_t *num_tokens, int block_size) {
-    size_t data_size = end - start;
-    
-    // Allocate GPU memory
+    // data[0..start-1]  = overlap context (empty for rank 0 where start=0)
+    // data[start..end-1] = actual block to compress
+    size_t actual_size = end - start;
+
     uint8_t *d_data;
     MatchResult *d_matches;
-    
-    CUDA_CHECK(cudaMalloc(&d_data, data_size));
-    CUDA_CHECK(cudaMalloc(&d_matches, data_size * sizeof(MatchResult)));
-    CUDA_CHECK(cudaMemcpy(d_data, data, data_size, cudaMemcpyHostToDevice));
-    
-    // Get matches from GPU
-    MatchResult *h_matches = (MatchResult*)malloc(data_size * sizeof(MatchResult));
-    if (!h_matches) return NULL;
-    
-    // Process in chunks
-    size_t position = 0;
-    while (position < data_size) {
-        size_t chunk_size = (position + CHUNK_SIZE < data_size) ? 
-                           CHUNK_SIZE : (data_size - position);
+
+    // Upload full region (overlap context + actual block) so the GPU can
+    // search the overlap when finding back-references.
+    CUDA_CHECK(cudaMalloc(&d_data, end));
+    CUDA_CHECK(cudaMalloc(&d_matches, actual_size * sizeof(MatchResult)));
+    CUDA_CHECK(cudaMemcpy(d_data, data, end, cudaMemcpyHostToDevice));
+
+    MatchResult *h_matches = (MatchResult*)malloc(actual_size * sizeof(MatchResult));
+    if (!h_matches) {
+        cudaFree(d_data);
+        cudaFree(d_matches);
+        return NULL;
+    }
+
+    // Limit lookahead to end-1 so every match leaves room for the literal
+    // within this block (position + length <= end-2, literal at end-1 at most).
+    size_t kernel_data_size = (end > 0) ? (end - 1) : 0;
+    size_t position = start;  // begin at actual block start, not at overlap start
+    while (position < end) {
+        size_t remaining = end - position;
+        size_t chunk_size = (remaining < CHUNK_SIZE) ? remaining : CHUNK_SIZE;
         int grid_size = (chunk_size + block_size - 1) / block_size;
-        
+
         find_matches_kernel<<<grid_size, block_size>>>(
-            d_data, data_size, d_matches + position, position, chunk_size);
+            d_data, kernel_data_size,
+            d_matches + (position - start), position, chunk_size);
         CUDA_CHECK(cudaGetLastError());
-        
+
         position += chunk_size;
     }
-    
+
     CUDA_CHECK(cudaDeviceSynchronize());
-    CUDA_CHECK(cudaMemcpy(h_matches, d_matches, 
-                         data_size * sizeof(MatchResult), 
+    CUDA_CHECK(cudaMemcpy(h_matches, d_matches,
+                         actual_size * sizeof(MatchResult),
                          cudaMemcpyDeviceToHost));
-    
+
     cudaFree(d_data);
     cudaFree(d_matches);
-    
-    // Generate tokens
-    LZ77_Token *tokens = (LZ77_Token*)malloc(data_size * sizeof(LZ77_Token));
+
+    LZ77_Token *tokens = (LZ77_Token*)malloc(actual_size * sizeof(LZ77_Token));
     if (!tokens) {
         free(h_matches);
         return NULL;
     }
-    
+
     size_t token_count = 0;
-    position = start;
-    size_t local_pos = 0;
-    
-    while (local_pos < data_size) {
+    size_t local_pos = 0;  // offset within h_matches / actual block
+
+    while (local_pos < actual_size) {
         uint16_t offset = h_matches[local_pos].offset;
         uint16_t length = h_matches[local_pos].length;
-        
-        uint8_t next_literal = (local_pos + length < data_size) ? 
-                               data[local_pos + length] : 0;
-        
+
+        // literal lives at data[start + local_pos + length]; always in-bounds
+        // because kernel_data_size = end-1 guarantees start+local_pos+length <= end-2
+        uint8_t next_literal = data[start + local_pos + length];
+
         tokens[token_count].offset = offset;
         tokens[token_count].length = length;
         tokens[token_count].literal = next_literal;
         token_count++;
-        
+
         local_pos += (length > 0) ? (length + 1) : 1;
     }
-    
+
     free(h_matches);
     *num_tokens = token_count;
     return tokens;
@@ -270,8 +278,8 @@ LZ77_Token* read_compressed_file(const char *filename, size_t *num_tokens,
 }
 
 uint8_t* decompress_lz77(const LZ77_Token *tokens, size_t num_tokens,
-                         size_t *output_size) {
-    size_t estimated_size = num_tokens * LOOKAHEAD_SIZE;
+                         size_t original_size, size_t *output_size) {
+    size_t estimated_size = original_size;
     uint8_t *output_data = (uint8_t*)malloc(estimated_size);
     if (!output_data) return NULL;
 
@@ -348,7 +356,7 @@ int main(int argc, char *argv[]) {
                 return 1;
             }
 
-            uint8_t *decompressed_data = decompress_lz77(tokens, num_tokens, &output_size);
+            uint8_t *decompressed_data = decompress_lz77(tokens, num_tokens, original_size, &output_size);
             if (!decompressed_data) {
                 free(tokens);
                 MPI_Finalize();

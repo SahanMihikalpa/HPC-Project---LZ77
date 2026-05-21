@@ -189,9 +189,9 @@ LZ77_Token* compress_lz77_cuda(const uint8_t *input_data, size_t input_size,
 /**
  * Decompress LZ77 tokens
  */
-uint8_t* decompress_lz77(const LZ77_Token *tokens, size_t num_tokens, 
-                        size_t *output_size) {
-    size_t estimated_size = num_tokens * LOOKAHEAD_SIZE;
+uint8_t* decompress_lz77(const LZ77_Token *tokens, size_t num_tokens,
+                        size_t original_size, size_t *output_size) {
+    size_t estimated_size = original_size;
     uint8_t *output_data = (uint8_t*)malloc(estimated_size);
     if (!output_data) return NULL;
     
@@ -333,7 +333,7 @@ int main(int argc, char *argv[]) {
         LZ77_Token *tokens = read_compressed_file(input_file, &num_tokens, &original_size);
         if (!tokens) return 1;
         
-        uint8_t *decompressed_data = decompress_lz77(tokens, num_tokens, &output_size);
+        uint8_t *decompressed_data = decompress_lz77(tokens, num_tokens, original_size, &output_size);
         if (!decompressed_data) {
             free(tokens);
             return 1;
